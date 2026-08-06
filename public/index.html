@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quarterly Decks — Voice Agent</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="bar">
+        <div>
+          <h1 id="agent-name">Voice Agent</h1>
+          <p id="agent-project" class="muted"></p>
+        </div>
+        <div class="bar-right">
+          <span id="status" class="status idle">Idle</span>
+          <button id="toggle" class="primary">Start</button>
+        </div>
+      </header>
+
+      <section class="stage">
+        <div id="avatar" class="avatar"></div>
+        <div id="placeholder" class="placeholder">
+          <p>Press <strong>Start</strong> and allow microphone access.</p>
+        </div>
+      </section>
+
+      <section class="transcript" id="transcript" aria-live="polite"></section>
+    </main>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

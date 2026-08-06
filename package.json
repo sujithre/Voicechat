@@ -1,0 +1,21 @@
+{
+  "name": "voicechat",
+  "version": "1.0.0",
+  "description": "Browser voice + photo-avatar front end for a Microsoft Foundry agent, via the Azure Voice Live API.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.5.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
