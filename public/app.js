@@ -162,15 +162,67 @@ async function acceptAvatarAnswer(serverSdpBase64) {
 
 // ------------------------------------------------------------------ microphone
 
-async function startMicrophone() {
-  micStream = await navigator.mediaDevices.getUserMedia({
+const MIC_PROMPT_TIMEOUT_MS = 20000;
+
+// getUserMedia can hang indefinitely when the permission prompt is suppressed by
+// policy or never answered, so every failure mode is surfaced explicitly rather
+// than leaving the UI stuck on "Connecting...".
+async function acquireMicrophone() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      `Microphone needs a secure context. Open the app on http://localhost or over https, not ${location.origin}.`
+    );
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+  if (devices.length && !devices.some((d) => d.kind === 'audioinput')) {
+    throw new Error('No microphone detected on this machine.');
+  }
+
+  const constraints = {
     audio: {
       channelCount: 1,
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
     },
+  };
+
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            'Timed out waiting for microphone access. Check for a permission prompt or a blocked-microphone icon in the address bar.'
+          )
+        ),
+      MIC_PROMPT_TIMEOUT_MS
+    );
   });
+
+  try {
+    return await Promise.race([navigator.mediaDevices.getUserMedia(constraints), timeout]);
+  } catch (err) {
+    switch (err.name) {
+      case 'NotAllowedError':
+        throw new Error(
+          'Microphone permission denied. Allow it via the icon in the address bar, then reload.'
+        );
+      case 'NotFoundError':
+        throw new Error('No microphone detected on this machine.');
+      case 'NotReadableError':
+        throw new Error('The microphone is in use by another application.');
+      default:
+        throw err;
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function startMicrophone() {
+  micStream = await acquireMicrophone();
 
   audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
   await audioCtx.audioWorklet.addModule('pcm-processor.js');
@@ -277,16 +329,17 @@ function fail(message) {
 
 async function start() {
   els.toggle.disabled = true;
-  setStatus('Connecting…');
+  setStatus('Waiting for mic…');
 
   try {
     await startMicrophone();
   } catch (err) {
     els.toggle.disabled = false;
-    fail(`Microphone unavailable: ${err.message}`);
+    fail(err.message);
     return;
   }
 
+  setStatus('Connecting…');
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${scheme}://${location.host}/realtime`);
 
