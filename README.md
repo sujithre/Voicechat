@@ -82,10 +82,23 @@ az role assignment create --assignee $principal --role 53ca6127-db72-4b80-b1b0-d
 Redeploy after code changes:
 
 ```powershell
-Compress-Archive -Path package.json,package-lock.json,server.js,public,README.md `
-  -DestinationPath "$env:TEMP\voicedemo.zip" -Force
-az webapp deploy -g $rg -n $app --src-path "$env:TEMP\voicedemo.zip" --type zip
+# Do not use Compress-Archive on Windows PowerShell 5.1: it writes ZIP entries
+# with backslashes, so Linux App Service silently drops the public/ folder.
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$root = (Get-Location).Path
+Remove-Item "$root\app.zip" -Force -ErrorAction SilentlyContinue
+$zip = [IO.Compression.ZipFile]::Open("$root\app.zip", 'Create')
+$files = @('package.json','package-lock.json','server.js','README.md') +
+         (Get-ChildItem public -Recurse -File | ForEach-Object { $_.FullName.Substring($root.Length + 1) })
+foreach ($f in $files) {
+  [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $root $f), ($f -replace '\\','/')) | Out-Null
+}
+$zip.Dispose()
+
+az webapp deploy -g $rg -n $app --src-path app.zip --type zip
 ```
+
+`deploy.ps1` does this for you.
 
 Then browse to `https://<app>.azurewebsites.net`.
 

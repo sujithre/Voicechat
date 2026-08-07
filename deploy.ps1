@@ -43,6 +43,33 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Compress-Archive on Windows PowerShell 5.1 writes ZIP entry names with
+# backslashes, which the ZIP spec forbids. Linux-based App Service then fails to
+# extract any nested directory (public/), so the entries are written explicitly.
+function New-DeploymentPackage {
+    param([Parameter(Mandatory)][string] $Destination)
+
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+
+    $root = (Get-Location).Path
+    $items = @('package.json', 'package-lock.json', 'server.js', 'README.md') +
+             (Get-ChildItem (Join-Path $root 'public') -Recurse -File |
+                ForEach-Object { $_.FullName.Substring($root.Length + 1) })
+
+    Remove-Item $Destination -Force -ErrorAction SilentlyContinue
+    $zip = [IO.Compression.ZipFile]::Open($Destination, 'Create')
+    try {
+        foreach ($item in $items) {
+            $entry = $item -replace '\\', '/'
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, (Join-Path $root $item), $entry) | Out-Null
+        }
+    } finally {
+        $zip.Dispose()
+    }
+    return $Destination
+}
+
 if (-not $WebAppName) { $WebAppName = "voicedemo-$EnvName" }
 $rg   = "rg-voicedemo-$EnvName"
 $plan = "asp-voicedemo-$EnvName"
@@ -111,9 +138,7 @@ foreach ($name in $roleIds.Keys) {
 }
 
 Write-Host "==> Deploying code" -ForegroundColor Cyan
-$zip = Join-Path ([System.IO.Path]::GetTempPath()) "voicedemo-$EnvName.zip"
-Remove-Item $zip -ErrorAction SilentlyContinue
-Compress-Archive -Path package.json, package-lock.json, server.js, public, README.md -DestinationPath $zip
+$zip = New-DeploymentPackage (Join-Path ([System.IO.Path]::GetTempPath()) "voicedemo-$EnvName.zip")
 az webapp deploy -g $rg -n $WebAppName --src-path $zip --type zip -o none
 Remove-Item $zip -ErrorAction SilentlyContinue
 
