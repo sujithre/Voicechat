@@ -74,6 +74,13 @@ function buildAvatarConfig() {
   const customized = String(process.env.AVATAR_CUSTOMIZED || 'false') === 'true';
   const backgroundImageUrl = process.env.AVATAR_BACKGROUND_IMAGE_URL || '';
 
+  // 'webrtc' streams avatar media directly from the browser to an Azure TURN
+  // relay, which corporate networks often block. 'websocket' muxes the avatar
+  // into this session's WebSocket instead, so it follows the same path as the
+  // rest of the traffic.
+  const outputProtocol =
+    (process.env.AVATAR_OUTPUT || 'webrtc').toLowerCase() === 'websocket' ? 'websocket' : 'webrtc';
+
   const video = {
     codec: 'h264',
     bitrate: kind === 'photo' ? 500000 : 1000000,
@@ -90,7 +97,7 @@ function buildAvatarConfig() {
       character,
       ...(style ? { style } : {}),
       ...(customized ? { customized: true } : {}),
-      output_protocol: 'webrtc',
+      output_protocol: outputProtocol,
       video,
       scene: {
         zoom: 1.0,
@@ -109,7 +116,7 @@ function buildAvatarConfig() {
     character,
     ...(style ? { style } : {}),
     customized,
-    output_protocol: 'webrtc',
+    output_protocol: outputProtocol,
     video: {
       ...video,
       crop: { top_left: [560, 0], bottom_right: [1360, 1080] },

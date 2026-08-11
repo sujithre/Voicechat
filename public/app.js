@@ -1,5 +1,9 @@
 const SAMPLE_RATE = 24000;
 
+// H.264 video + AAC audio, matching the fragmented MP4 the avatar service emits
+// when output_protocol is 'websocket'.
+const FMP4_MIME = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+
 const els = {
   toggle: document.getElementById('toggle'),
   status: document.getElementById('status'),
@@ -21,6 +25,10 @@ let player = null;
 let avatarStarted = false;
 let running = false;
 let assistantLine = null;
+
+let mediaSource = null;
+let sourceBuffer = null;
+let videoQueue = [];
 
 // ---------------------------------------------------------------- utilities
 
@@ -160,6 +168,77 @@ async function acceptAvatarAnswer(serverSdpBase64) {
   setStatus('Live', 'live');
 }
 
+// ------------------------------------------------- avatar over the WebSocket
+// The service muxes video and audio into fragmented MP4 chunks delivered as
+// response.video.delta events, so no peer connection (and no TURN relay) is
+// involved. Chunks must be appended one at a time; SourceBuffer rejects a new
+// append while the previous one is still updating.
+
+function startWebSocketAvatar() {
+  if (avatarStarted) return;
+  avatarStarted = true;
+
+  if (!window.MediaSource || !MediaSource.isTypeSupported(FMP4_MIME)) {
+    fail('This browser cannot play the avatar stream. Use desktop Chrome, Edge or Firefox.');
+    return;
+  }
+
+  const video = document.createElement('video');
+  video.id = 'avatar-video';
+  video.autoplay = true;
+  video.playsInline = true;
+  video.addEventListener('canplay', () => video.play().catch(() => {}));
+
+  mediaSource = new MediaSource();
+  video.src = URL.createObjectURL(mediaSource);
+
+  mediaSource.addEventListener('sourceopen', () => {
+    try {
+      sourceBuffer = mediaSource.addSourceBuffer(FMP4_MIME);
+      sourceBuffer.addEventListener('updateend', flushVideoQueue);
+      flushVideoQueue();
+    } catch (err) {
+      fail(`Avatar playback setup failed: ${err.message}`);
+    }
+  });
+
+  els.avatar.appendChild(video);
+  els.placeholder.hidden = true;
+  setStatus('Live', 'live');
+}
+
+function flushVideoQueue() {
+  if (!sourceBuffer || sourceBuffer.updating) return;
+  if (!mediaSource || mediaSource.readyState !== 'open') return;
+
+  const chunk = videoQueue.shift();
+  if (!chunk) return;
+
+  try {
+    sourceBuffer.appendBuffer(chunk);
+  } catch (err) {
+    console.error('Failed to append avatar video chunk:', err);
+  }
+}
+
+function handleVideoChunk(base64) {
+  videoQueue.push(base64ToBytes(base64));
+  flushVideoQueue();
+}
+
+function teardownWebSocketAvatar() {
+  videoQueue = [];
+  if (mediaSource && mediaSource.readyState === 'open' && sourceBuffer && !sourceBuffer.updating) {
+    try {
+      mediaSource.endOfStream();
+    } catch {
+      /* stream already ended */
+    }
+  }
+  sourceBuffer = null;
+  mediaSource = null;
+}
+
 // ------------------------------------------------------------------ microphone
 
 const MIC_PROMPT_TIMEOUT_MS = 20000;
@@ -249,12 +328,16 @@ async function startMicrophone() {
 function handleServerEvent(event) {
   switch (event.type) {
     case 'session.updated': {
-      const ice = event.session?.avatar?.ice_servers;
-      if (config.session.avatar) {
-        startAvatar(ice).catch((err) => fail(`Avatar setup failed: ${err.message}`));
-      } else {
+      const avatar = config.session.avatar;
+      if (!avatar) {
         setStatus('Live', 'live');
         els.placeholder.hidden = false;
+      } else if (avatar.output_protocol === 'websocket') {
+        startWebSocketAvatar();
+      } else {
+        startAvatar(event.session?.avatar?.ice_servers).catch((err) =>
+          fail(`Avatar setup failed: ${err.message}`)
+        );
       }
       break;
     }
@@ -263,6 +346,10 @@ function handleServerEvent(event) {
       acceptAvatarAnswer(event.server_sdp).catch((err) =>
         fail(`Avatar negotiation failed: ${err.message}`)
       );
+      break;
+
+    case 'response.video.delta':
+      if (event.delta) handleVideoChunk(event.delta);
       break;
 
     case 'input_audio_buffer.speech_started':
@@ -384,6 +471,8 @@ function stop() {
   peer?.getSenders().forEach((sender) => sender.track?.stop());
   peer?.close();
   peer = null;
+
+  teardownWebSocketAvatar();
 
   micStream?.getTracks().forEach((track) => track.stop());
   micStream = null;

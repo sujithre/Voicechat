@@ -122,6 +122,7 @@ az webapp auth update -g $rg -n $app --enabled true --action RedirectToLoginPage
 | --- | --- |
 | `AGENT_PARAM_STYLE` | `new` sends `agent-name` / `agent-project-name`. Switch to `classic` (with `AGENT_ID`) if your project still uses Agent Service classic. |
 | `AVATAR_KIND` | `photo` (vasa-1 talking head — Camila, Anika, Gabrielle, Matteo…), `video` (Lisa, Harry, Meg… with a `AVATAR_STYLE`), or `none` for voice only. |
+| `AVATAR_OUTPUT` | `webrtc` (default) sends avatar media browser-to-Azure over a TURN relay — lowest latency, but requires outbound UDP 3478 / TCP 443 to `relay.communication.microsoft.com` from every client network. `websocket` muxes it into this app's WebSocket as fragmented MP4 instead: no firewall changes, media stays inside your VNet, ~200–400 ms more latency, and no iOS Safari support. |
 | `TURN_DETECTION_TYPE` | `azure_semantic_vad` (default) or `server_vad`. |
 | `ALLOWED_ORIGINS` | Extra origins permitted to open the proxied WebSocket. The app's own origin is always allowed. |
 
