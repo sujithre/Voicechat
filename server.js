@@ -124,9 +124,50 @@ function buildAvatarConfig() {
   };
 }
 
+// Spoken filler ("Let me check...") while the agent is still thinking. This does
+// not reduce latency, but it removes the dead air that makes it noticeable.
+// Field names are not in the published wire reference; they were confirmed
+// against the service, which echoes them back in session.updated.
+function buildInterimResponse() {
+  const mode = (process.env.INTERIM_RESPONSE || 'off').toLowerCase();
+  if (mode !== 'static' && mode !== 'llm') return null;
+
+  const base = {
+    triggers: (process.env.INTERIM_RESPONSE_TRIGGERS || 'latency')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+    latency_threshold_ms: Number(process.env.INTERIM_RESPONSE_THRESHOLD_MS || 500),
+  };
+
+  if (mode === 'llm') {
+    return {
+      ...base,
+      type: 'llm_interim_response',
+      model: process.env.INTERIM_RESPONSE_MODEL || 'gpt-4.1-mini',
+      ...(process.env.INTERIM_RESPONSE_INSTRUCTIONS
+        ? { instructions: process.env.INTERIM_RESPONSE_INSTRUCTIONS }
+        : {}),
+      max_completion_tokens: Number(process.env.INTERIM_RESPONSE_MAX_TOKENS || 50),
+    };
+  }
+
+  return {
+    ...base,
+    type: 'static_interim_response',
+    texts: (process.env.INTERIM_RESPONSE_TEXTS ||
+      'Let me check that.|One moment.|Let me look that up.|Give me a second.')
+      .split('|')
+      .map((t) => t.trim())
+      .filter(Boolean),
+  };
+}
+
 const clientConfig = {
-  agentName: AGENT_NAME || AGENT_ID,
-  projectName: AGENT_PROJECT_NAME,
+  // Nothing about the Foundry project leaks to the browser unless it is set
+  // explicitly here, so the demo can carry a friendly title instead.
+  title: process.env.DISPLAY_TITLE || AGENT_NAME || AGENT_ID,
+  subtitle: process.env.DISPLAY_SUBTITLE || '',
   greetOnConnect: String(process.env.GREET_ON_CONNECT || 'true') === 'true',
   session: {
     modalities: ['text', 'audio'],
@@ -144,6 +185,7 @@ const clientConfig = {
       temperature: Number(process.env.VOICE_TEMPERATURE || 0.8),
     },
     ...(buildAvatarConfig() ? { avatar: buildAvatarConfig() } : {}),
+    ...(buildInterimResponse() ? { interim_response: buildInterimResponse() } : {}),
   },
 };
 
