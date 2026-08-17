@@ -10,8 +10,14 @@ const els = {
   avatar: document.getElementById('avatar'),
   placeholder: document.getElementById('placeholder'),
   transcript: document.getElementById('transcript'),
+  transcriptToggle: document.getElementById('transcript-toggle'),
   agentName: document.getElementById('agent-name'),
-  agentProject: document.getElementById('agent-project'),
+  agentSubtitle: document.getElementById('agent-subtitle'),
+  state: document.getElementById('state'),
+  stateLabel: document.getElementById('state-label'),
+  caption: document.getElementById('caption'),
+  captionUser: document.getElementById('caption-user'),
+  captionText: document.getElementById('caption-text'),
 };
 
 let config = null;
@@ -25,6 +31,8 @@ let player = null;
 let avatarStarted = false;
 let running = false;
 let assistantLine = null;
+let assistantRaw = '';
+let kickedOff = false;
 
 let mediaSource = null;
 let sourceBuffer = null;
@@ -37,6 +45,70 @@ function setStatus(text, kind = 'idle') {
   els.status.className = `status ${kind}`;
 }
 
+// Conversation state shown over the avatar: listening | thinking | speaking.
+const STATE_LABELS = {
+  listening: 'Listening',
+  thinking: 'Thinking',
+  speaking: 'Speaking',
+};
+
+let convState = null;
+
+function setConvState(next) {
+  if (!next) {
+    convState = null;
+    els.state.hidden = true;
+    els.state.className = 'state';
+    return;
+  }
+  if (convState === next) return;
+  convState = next;
+  els.state.hidden = false;
+  els.state.className = `state ${next}`;
+  els.stateLabel.textContent = STATE_LABELS[next];
+}
+
+// Agent replies are authored for reading, not for a caption bar: strip markdown
+// and the 【6:0†source】 style citation markers the Foundry agent emits.
+function cleanText(text) {
+  return text
+    .replace(/【[^】]*】/g, '')
+    .replace(/\[\d+:\d+†[^\]]*\]/g, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(?<!\*)\*(?!\s)([^*]+?)\*/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '• ')
+    // The agent hyphenates acronyms (F-R-A) so the voice spells them out; the
+    // caption should still read FRA.
+    .replace(/\b[A-Z](?:-[A-Z]){1,5}s?\b/g, (match) => match.replace(/-/g, ''))
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimStart();
+}
+
+function showCaption(text) {
+  els.caption.hidden = false;
+  els.captionText.textContent = text;
+  // The caption box is two lines tall and clipped, so keep the newest text visible.
+  els.captionText.scrollTop = els.captionText.scrollHeight;
+}
+
+function showUserCaption(text) {
+  els.captionUser.hidden = !text;
+  els.captionUser.textContent = text || '';
+}
+
+function clearCaptions() {
+  els.caption.hidden = true;
+  els.captionText.textContent = '';
+  showUserCaption('');
+}
+
 function log(text, kind = 'system') {
   const div = document.createElement('div');
   div.className = `line ${kind}`;
@@ -44,6 +116,12 @@ function log(text, kind = 'system') {
   els.transcript.appendChild(div);
   els.transcript.scrollTop = els.transcript.scrollHeight;
   return div;
+}
+
+function revealTranscript() {
+  els.transcript.hidden = false;
+  els.transcriptToggle.setAttribute('aria-expanded', 'true');
+  els.transcript.scrollTop = els.transcript.scrollHeight;
 }
 
 function send(event) {
@@ -339,6 +417,8 @@ function handleServerEvent(event) {
           fail(`Avatar setup failed: ${err.message}`)
         );
       }
+      setConvState('listening');
+      kickOff();
       break;
     }
 
@@ -355,30 +435,47 @@ function handleServerEvent(event) {
     case 'input_audio_buffer.speech_started':
       // Barge-in: drop anything still queued locally.
       player?.stop();
+      setConvState('listening');
+      break;
+
+    case 'input_audio_buffer.speech_stopped':
+      setConvState('thinking');
       break;
 
     case 'conversation.item.input_audio_transcription.completed':
-      if (event.transcript) log(event.transcript, 'user');
+      if (event.transcript) {
+        log(event.transcript, 'user');
+        showUserCaption(event.transcript);
+      }
       break;
 
     case 'response.created':
       assistantLine = null;
+      assistantRaw = '';
+      setConvState('thinking');
       break;
 
     case 'response.audio_transcript.delta':
     case 'response.text.delta':
       if (event.delta) {
+        assistantRaw += event.delta;
+        const text = cleanText(assistantRaw);
         if (!assistantLine) assistantLine = log('', 'assistant');
-        assistantLine.textContent += event.delta;
+        assistantLine.textContent = text;
         els.transcript.scrollTop = els.transcript.scrollHeight;
+        showCaption(text);
+        setConvState('speaking');
       }
       break;
 
     case 'response.done':
       assistantLine = null;
+      assistantRaw = '';
+      setConvState('listening');
       break;
 
     case 'response.audio.delta':
+      setConvState('speaking');
       if (!config.session.avatar && event.delta) {
         const bytes = base64ToBytes(event.delta);
         player?.play(new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2));
@@ -387,6 +484,7 @@ function handleServerEvent(event) {
 
     case 'error':
       log(event.error?.message || 'Unknown error from Voice Live.', 'error');
+      revealTranscript();
       break;
 
     default:
@@ -406,16 +504,27 @@ function greet() {
   send({ type: 'response.create' });
 }
 
+// session.updated can arrive more than once; the opening turn must only fire once.
+function kickOff() {
+  if (kickedOff) return;
+  kickedOff = true;
+
+  if (config.greetOnConnect) greet();
+}
+
 // ------------------------------------------------------------------ lifecycle
 
 function fail(message) {
   log(message, 'error');
+  // The transcript is collapsed by default, so errors would otherwise be invisible.
+  revealTranscript();
   setStatus('Error', 'error');
   stop();
 }
 
 async function start() {
   els.toggle.disabled = true;
+  clearCaptions();
   setStatus('Waiting for mic…');
 
   try {
@@ -437,7 +546,6 @@ async function start() {
     els.toggle.classList.add('stop');
     setStatus('Negotiating…');
     send({ type: 'session.update', session: config.session });
-    if (config.greetOnConnect) setTimeout(greet, 800);
   };
 
   ws.onmessage = (message) => {
@@ -460,6 +568,10 @@ function stop() {
   running = false;
   avatarStarted = false;
   assistantLine = null;
+  assistantRaw = '';
+  kickedOff = false;
+  setConvState(null);
+  clearCaptions();
 
   try {
     ws?.close();
@@ -497,13 +609,24 @@ function stop() {
 }
 
 els.toggle.addEventListener('click', () => (running ? stop() : start()));
+
+els.transcriptToggle.addEventListener('click', () => {
+  if (els.transcript.hidden) revealTranscript();
+  else {
+    els.transcript.hidden = true;
+    els.transcriptToggle.setAttribute('aria-expanded', 'false');
+  }
+});
+
 window.addEventListener('beforeunload', stop);
 
 (async function init() {
   try {
     config = await (await fetch('/api/config')).json();
-    els.agentName.textContent = config.agentName;
-    els.agentProject.textContent = `Foundry project: ${config.projectName}`;
+    document.title = config.title;
+    els.agentName.textContent = config.title;
+    els.agentSubtitle.textContent = config.subtitle || '';
+    els.agentSubtitle.hidden = !config.subtitle;
   } catch {
     fail('Could not load app configuration.');
   }

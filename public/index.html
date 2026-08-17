@@ -3,30 +3,50 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Quarterly Decks — Voice Agent</title>
+    <title>Voice Agent</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app">
       <header class="bar">
-        <div>
+        <div class="brand">
           <h1 id="agent-name">Voice Agent</h1>
-          <p id="agent-project" class="muted"></p>
+          <p id="agent-subtitle" class="muted" hidden></p>
         </div>
         <div class="bar-right">
           <span id="status" class="status idle">Idle</span>
-          <button id="toggle" class="primary">Start</button>
+          <button
+            id="transcript-toggle"
+            class="ghost"
+            type="button"
+            aria-expanded="false"
+            aria-controls="transcript"
+          >
+            Transcript
+          </button>
+          <button id="toggle" class="primary" type="button">Start</button>
         </div>
       </header>
 
       <section class="stage">
         <div id="avatar" class="avatar"></div>
+
+        <div id="state" class="state" hidden>
+          <span class="dot" aria-hidden="true"></span>
+          <span id="state-label">Listening</span>
+        </div>
+
+        <div id="caption" class="caption" hidden>
+          <p id="caption-user" class="caption-user" hidden></p>
+          <p id="caption-text" class="caption-text"></p>
+        </div>
+
         <div id="placeholder" class="placeholder">
-          <p>Press <strong>Start</strong> and allow microphone access.</p>
+          <h2>Press <strong>Start</strong> and allow microphone access.</h2>
         </div>
       </section>
 
-      <section class="transcript" id="transcript" aria-live="polite"></section>
+      <section class="transcript" id="transcript" aria-live="polite" hidden></section>
     </main>
 
     <script src="app.js" type="module"></script>

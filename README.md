@@ -124,7 +124,21 @@ az webapp auth update -g $rg -n $app --enabled true --action RedirectToLoginPage
 | `AVATAR_KIND` | `photo` (vasa-1 talking head — Camila, Anika, Gabrielle, Matteo…), `video` (Lisa, Harry, Meg… with a `AVATAR_STYLE`), or `none` for voice only. |
 | `AVATAR_OUTPUT` | `webrtc` (default) sends avatar media browser-to-Azure over a TURN relay — lowest latency, but requires outbound UDP 3478 / TCP 443 to `relay.communication.microsoft.com` from every client network. `websocket` muxes it into this app's WebSocket as fragmented MP4 instead: no firewall changes, media stays inside your VNet, ~200–400 ms more latency, and no iOS Safari support. |
 | `TURN_DETECTION_TYPE` | `azure_semantic_vad` (default) or `server_vad`. |
+| `INTERIM_RESPONSE` | `off` (default), `static` or `llm`. Speaks a filler phrase once the agent has been thinking for `INTERIM_RESPONSE_THRESHOLD_MS`. Latency is unchanged; the silence is what disappears. |
+| `DISPLAY_TITLE` / `DISPLAY_SUBTITLE` | What the browser shows in the header. Defaults to the agent name; set it so an audience never sees the Foundry agent or project name. |
 | `ALLOWED_ORIGINS` | Extra origins permitted to open the proxied WebSocket. The app's own origin is always allowed. |
+
+The stage is avatar-first: the video fills it, the agent's latest words appear as
+a two-line caption over the bottom, and a chip in the corner shows whether the
+session is **Listening**, **Thinking** or **Speaking**. The full transcript is
+behind the *Transcript* button and opens by itself if anything errors. Captions
+and transcript are stripped of markdown and of the `【6:0†source】` citation
+markers a Foundry agent emits, since neither reads well on screen.
+
+Acronyms are pronounced by writing them hyphenated in the agent's own
+instructions — `F-R-A` rather than `FRA` — because the text the agent emits is
+what gets spoken. The hyphens are removed again before display, so the audience
+hears "F-R-A" and reads "FRA".
 
 `instructions` is intentionally not sent in `session.update`: it is not supported
 when the session targets a custom agent. Prompt changes belong in the agent
