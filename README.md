@@ -121,7 +121,8 @@ az webapp auth update -g $rg -n $app --enabled true --action RedirectToLoginPage
 | Setting | Purpose |
 | --- | --- |
 | `AGENT_PARAM_STYLE` | `new` sends `agent-name` / `agent-project-name`. Switch to `classic` (with `AGENT_ID`) if your project still uses Agent Service classic. |
-| `AVATAR_KIND` | `photo` (vasa-1 talking head — Camila, Anika, Gabrielle, Matteo…), `video` (Lisa, Harry, Meg… with a `AVATAR_STYLE`), or `none` for voice only. |
+| `AVATAR_KIND` | `photo` (vasa-1 talking head), `video` (full-body Lisa, Harry, Meg… with an `AVATAR_STYLE`), or `none` for voice only. |
+| `AVATAR_CHARACTER` | For `photo`: adrian, amara, amira, anika, bianca, camila, carlos, clara, darius, diego, elise, farhan, faris, gabrielle, hyejin, imran, isabella, layla, liwei, ling, marcus, matteo, rahul, rana, ren, riya, sakura, simone, zayd, zoe. Preview images are in the [standard avatars list](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech-avatar/standard-avatars). |
 | `AVATAR_OUTPUT` | `webrtc` (default) sends avatar media browser-to-Azure over a TURN relay — lowest latency, but requires outbound UDP 3478 / TCP 443 to `relay.communication.microsoft.com` from every client network. `websocket` muxes it into this app's WebSocket as fragmented MP4 instead: no firewall changes, media stays inside your VNet, ~200–400 ms more latency, and no iOS Safari support. |
 | `TURN_DETECTION_TYPE` | `azure_semantic_vad` (default) or `server_vad`. |
 | `INTERIM_RESPONSE` | `off` (default), `static` or `llm`. Speaks a filler phrase once the agent has been thinking for `INTERIM_RESPONSE_THRESHOLD_MS`. Latency is unchanged; the silence is what disappears. |
