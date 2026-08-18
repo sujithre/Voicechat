@@ -34,6 +34,7 @@ let running = false;
 let assistantLine = null;
 let assistantRaw = '';
 let kickedOff = false;
+let interimArmed = false;
 
 let mediaSource = null;
 let sourceBuffer = null;
@@ -473,6 +474,7 @@ function handleServerEvent(event) {
       assistantLine = null;
       assistantRaw = '';
       setConvState('listening');
+      armInterimResponses();
       break;
 
     case 'response.audio.delta':
@@ -513,6 +515,25 @@ function kickOff() {
   if (config.greetOnConnect) greet();
 }
 
+// The greeting is a scripted turn, so a "let me check that" ahead of it makes no
+// sense. Interim responses are withheld until it has been delivered.
+function openingSessionUpdate() {
+  const session = { ...config.session };
+  if (config.greetOnConnect) delete session.interim_response;
+  send({ type: 'session.update', session });
+}
+
+// Only the changed field is sent: the service rejects a voice change once an
+// avatar is attached, and the full config carries one.
+function armInterimResponses() {
+  if (interimArmed || !config.session.interim_response) return;
+  interimArmed = true;
+  send({
+    type: 'session.update',
+    session: { interim_response: config.session.interim_response },
+  });
+}
+
 // ------------------------------------------------------------------ lifecycle
 
 function fail(message) {
@@ -546,7 +567,8 @@ async function start() {
     els.toggle.textContent = 'Stop';
     els.toggle.classList.add('stop');
     setStatus('Negotiating…');
-    send({ type: 'session.update', session: config.session });
+    interimArmed = !config.greetOnConnect;
+    openingSessionUpdate();
   };
 
   ws.onmessage = (message) => {
@@ -571,6 +593,7 @@ function stop() {
   assistantLine = null;
   assistantRaw = '';
   kickedOff = false;
+  interimArmed = false;
   setConvState(null);
   clearCaptions();
 
