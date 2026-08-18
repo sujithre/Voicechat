@@ -47,6 +47,21 @@ body {
   font-size: 1.15rem;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* The logo artwork has a white background, so it needs its own light plate. */
+.logo {
+  height: 62px;
+  width: auto;
+  padding: 2px 6px;
+  background: #fff;
+  border-radius: 8px;
+}
+
 .bar-right {
   display: flex;
   align-items: center;

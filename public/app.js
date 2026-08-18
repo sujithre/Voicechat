@@ -13,6 +13,7 @@ const els = {
   transcriptToggle: document.getElementById('transcript-toggle'),
   agentName: document.getElementById('agent-name'),
   agentSubtitle: document.getElementById('agent-subtitle'),
+  logo: document.getElementById('logo'),
   state: document.getElementById('state'),
   stateLabel: document.getElementById('state-label'),
   caption: document.getElementById('caption'),
@@ -619,6 +620,10 @@ els.transcriptToggle.addEventListener('click', () => {
 });
 
 window.addEventListener('beforeunload', stop);
+
+// The brand asset is deployment-specific and may simply not be there.
+if (els.logo.complete && els.logo.naturalWidth) els.logo.hidden = false;
+else els.logo.addEventListener('load', () => (els.logo.hidden = false));
 
 (async function init() {
   try {

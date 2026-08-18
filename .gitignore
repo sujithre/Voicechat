@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 app.zip
+
+# Brand asset: ships with the deployment, but this repo is public.
+public/logo.png
