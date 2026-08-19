@@ -174,6 +174,7 @@ const clientConfig = {
   title: process.env.DISPLAY_TITLE || AGENT_NAME || AGENT_ID,
   subtitle: process.env.DISPLAY_SUBTITLE || '',
   greetOnConnect: String(process.env.GREET_ON_CONNECT || 'true') === 'true',
+  greeting: process.env.GREETING_TEXT || '',
   session: {
     modalities: ['text', 'audio'],
     input_audio_sampling_rate: 24000,

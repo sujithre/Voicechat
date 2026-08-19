@@ -496,12 +496,18 @@ function handleServerEvent(event) {
 }
 
 function greet() {
+  // Asking the agent to compose a greeting produces different wording every
+  // session, which is wrong for a scripted event opening.
+  const text = config.greeting
+    ? `Say exactly this, word for word, and nothing else: "${config.greeting}"`
+    : 'Greet the user briefly to start the conversation.';
+
   send({
     type: 'conversation.item.create',
     item: {
       type: 'message',
       role: 'system',
-      content: [{ type: 'input_text', text: 'Greet the user briefly to start the conversation.' }],
+      content: [{ type: 'input_text', text }],
     },
   });
   send({ type: 'response.create' });
