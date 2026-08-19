@@ -177,7 +177,9 @@ const clientConfig = {
     input_audio_transcription: { model: 'azure-speech' },
     turn_detection: {
       type: process.env.TURN_DETECTION_TYPE || 'azure_semantic_vad',
-      silence_duration_ms: 500,
+      // Dead time before the agent is even asked. Semantic VAD also weighs
+      // whether the sentence sounds finished, so this can run short.
+      silence_duration_ms: Number(process.env.VAD_SILENCE_MS || 300),
     },
     voice: {
       name: process.env.VOICE_NAME || 'en-US-Ava:DragonHDLatestNeural',
