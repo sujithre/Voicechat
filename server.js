@@ -73,6 +73,7 @@ function buildAvatarConfig() {
   const style = process.env.AVATAR_STYLE || '';
   const customized = String(process.env.AVATAR_CUSTOMIZED || 'false') === 'true';
   const backgroundImageUrl = process.env.AVATAR_BACKGROUND_IMAGE_URL || '';
+  const backgroundColor = process.env.AVATAR_BACKGROUND_COLOR || '';
 
   // 'webrtc' streams avatar media directly from the browser to an Azure TURN
   // relay, which corporate networks often block. 'websocket' muxes the avatar
@@ -88,6 +89,10 @@ function buildAvatarConfig() {
   };
   if (backgroundImageUrl) {
     video.background = { image_url: backgroundImageUrl };
+  } else if (backgroundColor) {
+    // Real-time avatar discards the alpha byte, so #00000000 renders as opaque
+    // black rather than transparent. That is what additive displays need anyway.
+    video.background = { color: backgroundColor };
   }
 
   if (kind === 'photo') {
