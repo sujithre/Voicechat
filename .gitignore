@@ -4,8 +4,8 @@ node_modules/
 .DS_Store
 app.zip
 
-# Brand asset: ships with the deployment, but this repo is public.
-public/logo.png
+# Brand assets: they ship with the deployment, but this repo is public.
+public/*.png
 
 # Customer-specific prompts and throwaway probes: both carry material that must
 # not be published (engagement content, internal endpoints, project names).

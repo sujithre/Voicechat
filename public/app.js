@@ -11,6 +11,7 @@ const els = {
   placeholder: document.getElementById('placeholder'),
   transcript: document.getElementById('transcript'),
   transcriptToggle: document.getElementById('transcript-toggle'),
+  mute: document.getElementById('mute'),
   agentName: document.getElementById('agent-name'),
   agentSubtitle: document.getElementById('agent-subtitle'),
   logo: document.getElementById('logo'),
@@ -35,6 +36,7 @@ let assistantLine = null;
 let assistantRaw = '';
 let kickedOff = false;
 let interimArmed = false;
+let micMuted = false;
 
 let mediaSource = null;
 let sourceBuffer = null;
@@ -550,8 +552,22 @@ function fail(message) {
   stop();
 }
 
+// Disabling the track keeps the worklet streaming digital silence, which holds
+// the session open and cannot trip voice-activity detection. Pausing the sends
+// instead would risk the service closing an apparently idle connection.
+function setMuted(next) {
+  micMuted = next;
+  micStream?.getAudioTracks().forEach((track) => (track.enabled = !next));
+  els.mute.textContent = next ? 'Unmute' : 'Mute';
+  els.mute.classList.toggle('muted', next);
+  els.mute.setAttribute('aria-pressed', String(next));
+  // "Listening" would be a lie while the mic is off.
+  if (next) setConvState(null);
+}
+
 async function start() {
   els.toggle.disabled = true;
+  els.avatar.replaceChildren();
   clearCaptions();
   setStatus('Waiting for mic…');
 
@@ -572,6 +588,8 @@ async function start() {
     els.toggle.disabled = false;
     els.toggle.textContent = 'Stop';
     els.toggle.classList.add('stop');
+    els.mute.hidden = false;
+    setMuted(false);
     setStatus('Negotiating…');
     interimArmed = !config.greetOnConnect;
     openingSessionUpdate();
@@ -593,8 +611,27 @@ async function start() {
   };
 }
 
+// Copies the frame currently on screen into a canvas. The live stream goes black
+// the moment its tracks end, so this has to run before any teardown.
+function captureAvatarFrame() {
+  const video = els.avatar.querySelector('video');
+  if (!video?.videoWidth) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.id = 'avatar-still';
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  try {
+    canvas.getContext('2d').drawImage(video, 0, 0);
+  } catch {
+    return null;
+  }
+  return canvas;
+}
+
 function stop() {
   running = false;
+  const still = captureAvatarFrame();
   avatarStarted = false;
   assistantLine = null;
   assistantRaw = '';
@@ -630,8 +667,12 @@ function stop() {
   audioCtx?.close();
   audioCtx = null;
 
-  els.avatar.replaceChildren();
-  els.placeholder.hidden = false;
+  els.avatar.replaceChildren(...(still ? [still] : []));
+  els.placeholder.hidden = Boolean(still);
+  micMuted = false;
+  els.mute.hidden = true;
+  els.mute.textContent = 'Mute';
+  els.mute.classList.remove('muted');
   els.toggle.disabled = false;
   els.toggle.textContent = 'Start';
   els.toggle.classList.remove('stop');
@@ -639,6 +680,8 @@ function stop() {
 }
 
 els.toggle.addEventListener('click', () => (running ? stop() : start()));
+
+els.mute.addEventListener('click', () => setMuted(!micMuted));
 
 els.transcriptToggle.addEventListener('click', () => {
   if (els.transcript.hidden) revealTranscript();
