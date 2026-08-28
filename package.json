@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./stop.ps1"
   },
   "dependencies": {
     "@azure/identity": "^4.5.0",

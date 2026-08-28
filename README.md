@@ -35,7 +35,7 @@ az login
 npm start
 ```
 
-Open <http://localhost:3000>, press **Start**, and allow the microphone.
+Open <http://localhost:3001>, press **Start**, and allow the microphone.
 
 Your signed-in user needs **Cognitive Services User** and **Foundry User**
 (formerly Azure AI User) on the Foundry resource.

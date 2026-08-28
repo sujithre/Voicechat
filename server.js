@@ -10,7 +10,7 @@ import { DefaultAzureCredential } from '@azure/identity';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3001);
 const VOICELIVE_ENDPOINT = process.env.VOICELIVE_ENDPOINT || '';
 const VOICELIVE_API_VERSION = process.env.VOICELIVE_API_VERSION || '2025-10-01';
 const AGENT_PROJECT_NAME = process.env.AGENT_PROJECT_NAME || '';
