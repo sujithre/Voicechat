@@ -54,11 +54,15 @@ const STATE_LABELS = {
   listening: 'Listening',
   thinking: 'Thinking',
   speaking: 'Speaking',
+  muted: 'Muted',
 };
 
 let convState = null;
 
 function setConvState(next) {
+  // While muted nothing can be heard, so the service's own state events would
+  // only contradict what the presenter sees.
+  if (micMuted && next && next !== 'muted') return;
   if (!next) {
     convState = null;
     els.state.hidden = true;
@@ -392,6 +396,9 @@ async function startMicrophone() {
   sourceNode = audioCtx.createMediaStreamSource(micStream);
   workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
   workletNode.port.onmessage = (event) => {
+    // Disabling the track already yields silence, but the service can still open
+    // a turn on it. Dropping the frames outright is what guarantees no reply.
+    if (micMuted) return;
     send({
       type: 'input_audio_buffer.append',
       audio: bytesToBase64(new Uint8Array(event.data)),
@@ -552,17 +559,21 @@ function fail(message) {
   stop();
 }
 
-// Disabling the track keeps the worklet streaming digital silence, which holds
-// the session open and cannot trip voice-activity detection. Pausing the sends
-// instead would risk the service closing an apparently idle connection.
+// Muting both disables the mic track and stops forwarding frames, so the service
+// receives nothing at all and cannot open a turn.
 function setMuted(next) {
   micMuted = next;
   micStream?.getAudioTracks().forEach((track) => (track.enabled = !next));
   els.mute.textContent = next ? 'Unmute' : 'Mute';
   els.mute.classList.toggle('muted', next);
   els.mute.setAttribute('aria-pressed', String(next));
-  // "Listening" would be a lie while the mic is off.
-  if (next) setConvState(null);
+
+  // Drop whatever the service already buffered, so unmuting cannot replay a
+  // half-heard utterance from before the mute.
+  if (next && ws?.readyState === WebSocket.OPEN) {
+    send({ type: 'input_audio_buffer.clear' });
+  }
+  setConvState(next ? 'muted' : 'listening');
 }
 
 async function start() {

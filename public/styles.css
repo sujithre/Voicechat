@@ -234,6 +234,15 @@ button.ghost.muted:hover {
   animation: pulse 1.1s ease-in-out infinite;
 }
 
+.state.muted {
+  border-color: #7a6320;
+}
+
+/* No pulse: the point is that nothing is being heard. */
+.state.muted .dot {
+  background: #fbbf24;
+}
+
 @keyframes pulse {
   0%,
   100% {
