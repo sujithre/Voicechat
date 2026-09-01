@@ -37,6 +37,7 @@ let assistantRaw = '';
 let kickedOff = false;
 let interimArmed = false;
 let micMuted = false;
+let transcriptEnabled = true;
 
 let mediaSource = null;
 let sourceBuffer = null;
@@ -100,6 +101,7 @@ function cleanText(text) {
 }
 
 function showCaption(text) {
+  if (!transcriptEnabled) return;
   els.caption.hidden = false;
   els.captionText.textContent = text;
   // The caption box is two lines tall and clipped, so keep the newest text visible.
@@ -107,6 +109,7 @@ function showCaption(text) {
 }
 
 function showUserCaption(text) {
+  if (!transcriptEnabled) return;
   els.captionUser.hidden = !text;
   els.captionUser.textContent = text || '';
 }
@@ -127,6 +130,7 @@ function log(text, kind = 'system') {
 }
 
 function revealTranscript() {
+  if (!transcriptEnabled) return;
   els.transcript.hidden = false;
   els.transcriptToggle.setAttribute('aria-expanded', 'true');
   els.transcript.scrollTop = els.transcript.scrollHeight;
@@ -553,6 +557,8 @@ function armInterimResponses() {
 
 function fail(message) {
   log(message, 'error');
+  // With the transcript switched off this is the only trace an operator gets.
+  console.error(message);
   // The transcript is collapsed by default, so errors would otherwise be invisible.
   revealTranscript();
   setStatus('Error', 'error');
@@ -712,6 +718,9 @@ else els.logo.addEventListener('load', () => (els.logo.hidden = false));
   try {
     config = await (await fetch('/api/config')).json();
     document.title = config.title;
+    transcriptEnabled = config.showTranscript !== false;
+    els.transcriptToggle.hidden = !transcriptEnabled;
+    if (!transcriptEnabled) clearCaptions();
     els.agentName.textContent = config.title;
     els.agentSubtitle.textContent = config.subtitle || '';
     els.agentSubtitle.hidden = !config.subtitle;

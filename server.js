@@ -175,6 +175,7 @@ const clientConfig = {
   subtitle: process.env.DISPLAY_SUBTITLE || '',
   greetOnConnect: String(process.env.GREET_ON_CONNECT || 'true') === 'true',
   greeting: process.env.GREETING_TEXT || '',
+  showTranscript: String(process.env.SHOW_TRANSCRIPT || 'true') === 'true',
   session: {
     modalities: ['text', 'audio'],
     input_audio_sampling_rate: 24000,
